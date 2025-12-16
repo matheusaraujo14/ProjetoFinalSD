@@ -1,0 +1,49 @@
+# k8s/flask-api.yaml
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-service
+spec:
+  selector:
+    app: leilao-api
+  ports:
+    - protocol: TCP
+      port: 5000       # Porta que você usará para acessar a API (localhost:5000)
+      targetPort: 5000 # Porta do Container Flask
+  type: LoadBalancer   # Balanceia a carga e expõe para o localhost (Windows)
+
+--- # <--- VERIFIQUE: ESTA LINHA DEVE ESTAR SOZINHA, SEM INDENTAÇÃO
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-deployment
+  labels:
+    app: leilao-api
+spec:
+  replicas: 3 
+  selector:
+    matchLabels:
+      app: leilao-api
+  template:
+    metadata:
+      labels:
+        app: leilao-api
+    spec:
+      containers:
+      - name: leilao-api
+        image: leilao-api:v10
+        imagePullPolicy: IfNotPresent 
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REDIS_HOST 
+          value: "redis-service" 
+        resources:
+          requests: 
+            memory: "128Mi"
+            cpu: "200m"
+          limits: 
+            memory: "256Mi"
+            cpu: "500m"

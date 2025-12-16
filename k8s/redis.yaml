@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  selector:
+    app: redis
+  ports:
+    - protocol: TCP
+      port: 6379        # Porta interna no Cluster
+      targetPort: 6379  # Porta do Container
+  type: LoadBalancer    # Expõe para o localhost (Windows)
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: redis-statefulset
+spec:
+  serviceName: "redis-service"
+  replicas: 1 # Apenas 1 Redis para evitar complexidade de sincronização mestre-escravo agora
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:latest
+        ports:
+        - containerPort: 6379
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"

@@ -1,0 +1,14 @@
+# Dockerfile.worker
+
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copie explicitamente o script Python para o diretório de trabalho /app
+COPY ai_worker.py . 
+
+# Comando que está falhando: deve referenciar o nome do arquivo que foi copiado
+CMD ["python", "ai_worker.py"]

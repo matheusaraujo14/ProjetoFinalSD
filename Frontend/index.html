@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Leilão Distribuído - Cliente Web</title>
+    <style>
+        /* Estilos CSS (inalterados) */
+        :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; } 
+        
+        /* Telas */
+        #login-screen, #dashboard-screen { display: none; }
+        .active { display: block !important; }
+
+        /* Cards e Layout */
+        .card { background: var(--card); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .auction-item { border: 1px solid #ddd; padding: 15px; margin-bottom: 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+        .auction-info h3 { margin: 0 0 5px 0; color: #333; }
+        .highlight { color: var(--primary); font-weight: bold; }
+        
+        /* Flexboxes para layout dos blocos */
+        .auction-sections { display: flex; gap: 20px; margin-bottom: 20px; }
+        .auction-sections > div { flex: 1; min-width: 45%; }
+        
+        /* Inputs & Buttons */
+        input { padding: 10px; border: 1px solid #ccc; border-radius: 4px; width: 60%; }
+        button { padding: 10px 20px; background-color: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { opacity: 0.9; }
+        button.bid-btn { background-color: #10b981; width: auto; margin-left: 10px;}
+        button.view-bids-btn { background-color: #f97316; width: auto; }
+        
+        /* Busca - NOVA ESTRUTURA */
+        .search-area { margin-bottom: 15px; }
+        .search-inputs { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+        .search-inputs > div { flex: 1; min-width: 150px; }
+        .search-inputs input { width: 100%; box-sizing: border-box; }
+        .search-buttons { display: flex; gap: 10px; }
+        .search-buttons button { width: auto; flex: 1; }
+        button.search-btn { background-color: #2563eb; }
+        button.clear-btn { background-color: #6b7280; }
+
+        /* Notificações e Modal (Estilos preservados) */
+        #notifications-area { position: fixed; top: 20px; right: 20px; width: 300px; z-index: 1000; }
+        .toast { background: #333; color: white; padding: 15px; border-radius: 4px; margin-bottom: 10px; animation: slideIn 0.3s; }
+        .toast.win { background: #f59e0b; color: #000; font-weight: bold; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .modal {
+            display: none; position: fixed; z-index: 1; left: 0; top: 0;
+            width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);
+        }
+        .modal-content {
+            background-color: #fefefe; margin: 10% auto; padding: 20px;
+            border: 1px solid #888; width: 80%; max-width: 500px; border-radius: 8px;
+        }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; }
+        .close:hover, .close:focus { color: #000; text-decoration: none; cursor: pointer; }
+        .bid-list-item { padding: 5px 0; border-bottom: 1px dotted #eee; }
+        .bid-list-item:last-child { border-bottom: none; }
+
+        .auction-scroll-area {
+            max-height: 400px; /* Define a altura máxima, ajuste se necessário */
+            overflow-y: auto; /* Adiciona a barra de rolagem vertical */
+            padding-right: 10px; /* Espaço para a barra de rolagem */
+        } 
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="notifications-area"></div>
+
+    <div id="login-screen" class="card active">
+        <h2>Entrar no Leilão</h2>
+        <input type="text" id="username" placeholder="Seu nome de usuário">
+        <button onclick="registrar()">Entrar</button>
+    </div>
+
+    <div id="dashboard-screen">
+        <div class="card" style="display: flex; justify-content: space-between; align-items: center;">
+            <span id="user-display">Usuário: <b>...</b></span>
+            <button onclick="sair()" style="background-color: #ef4444;">Sair</button>
+        </div>
+
+        <div class="card">
+            <h3>Criar Novo Leilão</h3>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="new-title" placeholder="Item (ex: iPhone)" style="width: 40%;">
+                <input type="number" id="new-price" placeholder="R$ Inicial" style="width: 20%;">
+                <input type="number" id="new-time" placeholder="Minutos" style="width: 20%;">
+                <button onclick="criarLeilao()">Criar</button>
+            </div>
+        </div>
+
+        <div class="auction-sections">
+            
+            <div class="card">
+                <h3>Leilões Abertos</h3>
+                <div class="search-area">
+                    <div class="search-inputs">
+                        <div><input type="text" id="search-name" placeholder="Buscar por Nome"></div>
+                        <div><input type="number" id="search-min-price" placeholder="Preço Mínimo R$"></div>
+                        <div><input type="number" id="search-max-price" placeholder="Preço Máximo R$"></div>
+                    </div>
+                    <div class="search-buttons">
+                        <button class="search-btn" onclick="renderizarListas(allActiveAuctions)">Buscar</button>
+                        <button class="clear-btn" onclick="limparBusca()">Limpar</button>
+                    </div>
+                </div>
+                
+                <div id="auctions-open-list" class="auction-scroll-area">
+                    <p>Carregando leilões...</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Meus Leilões Participando</h3>
+                <div id="auctions-participating-list" class="auction-scroll-area">
+                    <p>Você não está participando de nenhum leilão ativo.</p>
+                </div>
+            </div>
+            
+        </div>
+        
+        <div class="card">
+            <h3>Histórico de Encerrados</h3>
+            <div id="history-list"></div>
+        </div>
+    </div>
+</div>
+
+<div id="bids-modal" class="modal">
+    <div class="modal-content">
+        <span class="close" onclick="fecharModal()">&times;</span>
+        <h3 id="modal-title">Lances para Leilão X</h3>
+        <div id="modal-bids-content">Carregando lances...</div>
+    </div>
+</div>
+
+<script>
+    // 🛑 CORREÇÃO APLICADA AQUI: Usando localhost:5000 (funciona com port-forward)
+    // Se estiver usando NodePort 30001 e o IP do nó, altere para: 
+    // const API_URL = "http://[IP_DO_NÓ]:30001";
+    const API_URL = "http://localhost:5000"; 
+    
+    let USER_ID = null;
+    let USER_NAME = null;
+    let lastState = {}; 
+    let allActiveAuctions = []; 
+
+    // --- FUNÇÕES DE UTILIDADE ---
+
+    function showToast(msg, type='normal') {
+        const area = document.getElementById('notifications-area');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerText = msg;
+        area.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    }
+    
+    function fecharModal() {
+        document.getElementById('bids-modal').style.display = 'none';
+    }
+
+    // --- INICIALIZAÇÃO E LOGIN ---
+    function init() {
+        document.getElementById('login-screen').classList.add('active');
+        document.getElementById('dashboard-screen').classList.remove('active');
+    }
+
+    function mostrarDashboard(id, nome) {
+        USER_ID = id;
+        USER_NAME = nome;
+        
+        document.getElementById('login-screen').classList.remove('active');
+        document.getElementById('dashboard-screen').classList.add('active');
+        document.getElementById('user-display').innerHTML = `Usuário: <b>${USER_NAME}</b> (ID: ${USER_ID})`;
+        
+        atualizarListas();
+        setInterval(atualizarListas, 2000); 
+        setInterval(checarVitorias, 5000); 
+    }
+
+    async function registrar() {
+        const nome = document.getElementById('username').value;
+        if (!nome) return alert('Digite um nome!');
+
+        try {
+            const res = await fetch(`${API_URL}/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nome: nome })
+            });
+            const data = await res.json();
+            mostrarDashboard(data.user_id, data.nome);
+        } catch (e) { alert("Erro ao conectar na API. Verifique se o port-forward está ativo ou o NodePort correto."); console.error(e);} // Mensagem de erro aprimorada
+    }
+
+    function sair() {
+        location.reload(); 
+    }
+
+    // --- FUNÇÕES DE AÇÃO (CRIAR, LANCE, VER LANCES) ---
+    
+    async function criarLeilao() {
+        const titulo = document.getElementById('new-title').value;
+        const preco = document.getElementById('new-price').value;
+        const duracao = document.getElementById('new-time').value;
+
+        if (!USER_ID) return showToast("Usuário não logado. Faça o login.", 'normal');
+        if (!titulo || !preco || !duracao || parseFloat(preco) <= 0 || parseInt(duracao) <= 0) {
+            return showToast("Preencha todos os campos com valores válidos.", 'normal');
+        }
+
+        const res = await fetch(`${API_URL}/auction/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: USER_ID, titulo: titulo, 
+                preco_inicial: preco, duracao_minutos: duracao 
+            })
+        });
+        
+        if (res.status === 201) {
+            document.getElementById('new-title').value = '';
+            document.getElementById('new-price').value = '';
+            document.getElementById('new-time').value = '';
+            showToast("Leilão criado com sucesso!", 'normal');
+        } else {
+            const data = await res.json();
+            showToast(`Erro: ${data.erro}`, 'normal');
+        }
+
+        atualizarListas();
+    }
+
+    async function darLance(auctionId) {
+        const valorStr = prompt("Qual o valor do seu lance?");
+        if (!valorStr) return;
+        const valor = parseFloat(valorStr);
+        if (isNaN(valor) || valor <= 0) return alert("Valor inválido.");
+
+        if (!USER_ID) return showToast("Usuário não logado. Faça o login.", 'normal');
+        
+        const res = await fetch(`${API_URL}/auction/bid`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                user_id: USER_ID, auction_id: auctionId, valor: valor 
+            })
+        });
+        const data = await res.json();
+        if (res.status === 200) {
+            showToast(`✅ Lance aceito! R$ ${valor.toFixed(2)}`, 'normal');
+            
+            // Adiciona o leilão à lista de participação do usuário (para persistência)
+            let lancesDados = new Set(JSON.parse(sessionStorage.getItem(`bids_for_user_${USER_ID}`) || '[]'));
+            lancesDados.add(auctionId); 
+            sessionStorage.setItem(`bids_for_user_${USER_ID}`, JSON.stringify(Array.from(lancesDados)));
+
+            atualizarListas();
+        } else {
+            showToast(`❌ ${data.erro}`, 'normal');
+        }
+    }
+
+    async function verLances(auctionId, auctionTitle) {
+        document.getElementById('modal-title').innerText = `Lances: ${auctionTitle}`;
+        document.getElementById('modal-bids-content').innerHTML = 'Carregando lances...';
+        document.getElementById('bids-modal').style.display = 'block';
+
+        try {
+            const res = await fetch(`${API_URL}/auction/${auctionId}/bids`);
+            const bids = await res.json();
+            const contentDiv = document.getElementById('modal-bids-content');
+            
+            if (bids.length === 0) { 
+                contentDiv.innerHTML = '<p>Nenhum lance foi feito neste leilão ainda.</p>';
+                return;
+            }
+
+            const listHtml = bids.map((bid, index) => {
+                const isHighest = index === 0;
+                return `
+                    <div class="bid-list-item">
+                        <span style="font-weight: ${isHighest ? 'bold' : 'normal'}">${isHighest ? '👑' : ''} R$ ${bid.valor.toFixed(2)}</span>
+                        <span>por ${bid.user_name}</span>
+                        <span style="float: right; font-size: 0.8em; color: #666;">${new Date(bid.timestamp).toLocaleTimeString()}</span>
+                    </div>
+                `;
+            }).join('');
+            
+            contentDiv.innerHTML = listHtml;
+
+        } catch (e) {
+            document.getElementById('modal-bids-content').innerHTML = '<p style="color: red;">Erro ao carregar lances.</p>';
+            console.error(e);
+        }
+    }
+
+    // --- LÓGICA DE BUSCA E FILTRO ---
+
+    function limparBusca() {
+        document.getElementById('search-name').value = '';
+        document.getElementById('search-min-price').value = '';
+        document.getElementById('search-max-price').value = '';
+        
+        renderizarListas(allActiveAuctions); 
+    }
+
+    function filtrarLeiloes(leiloes = allActiveAuctions) {
+        const nome = document.getElementById('search-name').value.toLowerCase();
+        const minPrice = parseFloat(document.getElementById('search-min-price').value) || 0;
+        const maxPrice = parseFloat(document.getElementById('search-max-price').value);
+
+        if (leiloes.length === 0) return [];
+
+        return leiloes.filter(leilao => {
+            const currentPrice = leilao.lance_atual;
+            
+            // Filtro por Nome
+            if (nome && !leilao.titulo.toLowerCase().includes(nome)) {
+                return false;
+            }
+
+            // Filtro por Preço Mínimo
+            if (currentPrice < minPrice) {
+                return false;
+            }
+
+            // Filtro por Preço Máximo
+            if (maxPrice && currentPrice > maxPrice) {
+                return false;
+            }
+
+            return true;
+        });
+    }
+
+    // --- LÓGICA DE RENDERIZAÇÃO E POLLING ---
+
+    async function atualizarListas() {
+        try {
+            const res = await fetch(`${API_URL}/auction/status`);
+            const leiloes = await res.json();
+            allActiveAuctions = leiloes; 
+            
+            const leiloesFiltrados = filtrarLeiloes(leiloes);
+            renderizarListas(leiloesFiltrados); 
+            
+        } catch (e) { /* Console.error("Erro ao buscar status", e); */ }
+
+        // Busca Histórico (Inalterado)
+        try {
+            const resH = await fetch(`${API_URL}/auction/history`);
+            const hist = await resH.json();
+            const histDiv = document.getElementById('history-list');
+            
+            if (hist.length === 0) {
+                 histDiv.innerHTML = '<p>Nenhum leilão encerrado ou cancelado.</p>';
+            } else {
+                 histDiv.innerHTML = hist.map(h => {
+                     const statusClass = h.status_final === 'CANCELADO' ? 'style="color: #ef4444;"' : 'style="color: #10b981;"';
+                     return `
+                         <div>
+                             <span ${statusClass}>${h.status_final === 'CANCELADO' ? '❌ CANCELADO' : '🏆 ENCERRADO'}</span>: 
+                             <b>${h.item}</b> - ${h.descricao}
+                         </div>
+                     `;
+                 }).join('');
+            }
+        } catch(e) {}
+    }
+
+    function renderizarListas(leiloesAbertosFiltrados) {
+        const participatingList = document.getElementById('auctions-participating-list');
+        const openList = document.getElementById('auctions-open-list');
+        
+        let htmlParticipating = '';
+        let htmlOpen = '';
+        
+        // Inicializa lancesDados para armazenar IDs de leilões que o usuário já deu um lance
+        let lancesDados = new Set(JSON.parse(sessionStorage.getItem(`bids_for_user_${USER_ID}`) || '[]'));
+        
+        // 1. Renderiza a lista de leilões abertos filtrados
+        leiloesAbertosFiltrados.forEach(leilao => {
+            const isMine = leilao.proprietario_id == USER_ID;
+            
+            // Se você é o usuário do LANCE ATUAL, adicione este leilão ao seu rastreamento
+            if (leilao.usuario_atual_id == USER_ID && leilao.lance_atual > leilao.preco_inicial) {
+                lancesDados.add(leilao.id); 
+            }
+            
+            // Condição de Participação: Se o ID do leilão estiver no rastreamento E você não é o dono
+            const isParticipating = lancesDados.has(leilao.id) && !isMine;
+            
+            const auctionHtml = `
+                <div class="auction-item" style="border-left: 5px solid ${isMine ? '#10b981' : (isParticipating ? '#f97316' : '#2563eb')}">
+                    <div class="auction-info">
+                        <h3>${leilao.titulo} ${isMine ? '<small>(Seu Leilão)</small>' : ''}</h3>
+                        <div>💰 Atual: <span class="highlight">R$ ${leilao.lance_atual.toFixed(2)}</span> por ${leilao.usuario_atual}</div>
+                        <div>⏳ Expira em: ${leilao.tempo_restante}</div>
+                    </div>
+                    <button class="view-bids-btn" onclick="verLances(${leilao.id}, '${leilao.titulo.replace(/'/g, "\\'")}')">Ver Lances</button>
+                    ${!isMine ? `<button class="bid-btn" onclick="darLance(${leilao.id})">Dar Lance</button>` : '<span></span>'}
+                </div>
+            `;
+            
+            // 2. Separação dos Blocos: Participando vs. Abertos
+            if (isParticipating) {
+                htmlParticipating += auctionHtml;
+            } else {
+                htmlOpen += auctionHtml;
+            }
+
+            // 3. Notificação de Novo Lance (LÓGICA REFORÇADA E CORRIGIDA)
+            const lanceKey = `leilao_${leilao.id}_valor`;
+            
+            // Verifica se houve um novo lance (maior que o anterior)
+            const isNewHighBid = lastState[lanceKey] && lastState[lanceKey] < leilao.lance_atual;
+
+            if (isMine || isParticipating) {
+                
+                if (isNewHighBid) {
+                    
+                    // Impede de notificar o próprio usuário se ele acabou de dar o lance
+                    if (leilao.usuario_atual_id != USER_ID) { 
+                        showToast(`💰 Novo lance em ${leilao.titulo}: R$ ${leilao.lance_atual.toFixed(2)} (${leilao.usuario_atual})`);
+                    }
+                }
+                
+                // Notificar o dono do leilão se ele for superado (garantia extra)
+                if (isMine && leilao.usuario_atual_id != USER_ID && isNewHighBid) {
+                    showToast(`🚨 Seu leilão '${leilao.titulo}' foi superado! Novo lance: R$ ${leilao.lance_atual.toFixed(2)}`, 'win');
+                }
+                
+                // Se o usuário está envolvido, atualiza o lastState.
+                lastState[lanceKey] = leilao.lance_atual; 
+
+            } else {
+                // 🛑 CORREÇÃO FINAL: Se o usuário NÃO está envolvido, removemos o rastreamento do lastState
+                delete lastState[lanceKey]; 
+            }
+        });
+
+        // 4. Salva a lista atualizada de participação e finaliza a renderização
+        sessionStorage.setItem(`bids_for_user_${USER_ID}`, JSON.stringify(Array.from(lancesDados)));
+
+        openList.innerHTML = htmlOpen || '<p>Nenhum leilão aberto que corresponda aos filtros.</p>';
+        participatingList.innerHTML = htmlParticipating || '<p>Você não está participando de nenhum leilão ativo.</p>';
+    }
+
+    async function checarVitorias() {
+        if (!USER_ID) return;
+        try {
+            const res = await fetch(`${API_URL}/user/${USER_ID}/notifications`);
+            const notificacoes = await res.json();
+            notificacoes.forEach(msg => {
+                const type = msg.includes("PARABÉNS") ? 'win' : 'normal';
+                showToast(msg, type);
+            });
+        } catch(e) {}
+    }
+
+    // Iniciar
+    init();
+</script>
+
+</body>
+</html>

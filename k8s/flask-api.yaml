@@ -9,11 +9,11 @@ spec:
     app: leilao-api
   ports:
     - protocol: TCP
-      port: 5000       # Porta que você usará para acessar a API (localhost:5000)
-      targetPort: 5000 # Porta do Container Flask
-  type: LoadBalancer   # Balanceia a carga e expõe para o localhost (Windows)
+      port: 5000       
+      targetPort: 5000 
+  type: LoadBalancer   
 
---- # <--- VERIFIQUE: ESTA LINHA DEVE ESTAR SOZINHA, SEM INDENTAÇÃO
+--- 
 
 apiVersion: apps/v1
 kind: Deployment
@@ -33,7 +33,7 @@ spec:
     spec:
       containers:
       - name: leilao-api
-        image: leilao-api:v10
+        image: leilao-api:v11
         imagePullPolicy: IfNotPresent 
         ports:
         - containerPort: 5000

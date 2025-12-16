@@ -7,7 +7,7 @@ metadata:
   labels:
     app: ai-worker
 spec:
-  replicas: 1 # Um worker é suficiente, a menos que você tenha um volume muito alto de eventos
+  replicas: 1 
   selector:
     matchLabels:
       app: ai-worker
@@ -18,15 +18,19 @@ spec:
     spec:
       containers:
       - name: ai-worker
-        image: ai-worker:v3 # <--- Você precisará construir essa imagem!
+        # Mantenha a tag que você está usando (v8)
+        image: ai-worker:v9 
         imagePullPolicy: IfNotPresent 
         env:
         - name: REDIS_HOST # Usa o nome do Service do Redis
           value: "redis-service" 
-        - name: DISCORD_WEBHOOK_URL # <--- MUITO IMPORTANTE!
-          # Substitua este valor pelo URL real do seu Webhook do Discord.
-          # Em um ambiente de produção, use um Secret do Kubernetes.
-          value: "https://discord.com/api/webhooks/1450205021252616340/nf6f1CquwuB-7JCnWzejzGAfJZO-NKIcLg52TA23LmOw-iCEy7nAXjP-meGQylqy0uP6" 
+          
+        - name: DISCORD_WEBHOOK_URL 
+          valueFrom:
+            secretKeyRef:
+              name: discord-webhook-secret 
+              key: webhook-url           
+              
         resources:
           requests: 
             memory: "64Mi"

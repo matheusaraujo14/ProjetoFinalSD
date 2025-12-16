@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Leilão Distribuído - Cliente Web</title>
     <style>
-        /* Estilos CSS (inalterados) */
+    
         :root { --primary: #2563eb; --bg: #f3f4f6; --card: #ffffff; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; padding: 20px; }
         .container { max-width: 1000px; margin: 0 auto; } 
@@ -31,7 +31,7 @@
         button.bid-btn { background-color: #10b981; width: auto; margin-left: 10px;}
         button.view-bids-btn { background-color: #f97316; width: auto; }
         
-        /* Busca - NOVA ESTRUTURA */
+        /* Busca */
         .search-area { margin-bottom: 15px; }
         .search-inputs { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
         .search-inputs > div { flex: 1; min-width: 150px; }
@@ -139,9 +139,7 @@
 </div>
 
 <script>
-    // 🛑 CORREÇÃO APLICADA AQUI: Usando localhost:5000 (funciona com port-forward)
-    // Se estiver usando NodePort 30001 e o IP do nó, altere para: 
-    // const API_URL = "http://[IP_DO_NÓ]:30001";
+
     const API_URL = "http://localhost:5000"; 
     
     let USER_ID = null;
@@ -179,7 +177,7 @@
         document.getElementById('user-display').innerHTML = `Usuário: <b>${USER_NAME}</b> (ID: ${USER_ID})`;
         
         atualizarListas();
-        setInterval(atualizarListas, 2000); 
+        setInterval(atualizarListas, 3000); 
         setInterval(checarVitorias, 5000); 
     }
 
@@ -374,46 +372,52 @@
         } catch(e) {}
     }
 
-    function renderizarListas(leiloesAbertosFiltrados) {
-        const participatingList = document.getElementById('auctions-participating-list');
-        const openList = document.getElementById('auctions-open-list');
+  // index.html (Trecho da função renderizarListas)
+
+function renderizarListas(leiloesAbertosFiltrados) {
+    const participatingList = document.getElementById('auctions-participating-list');
+    const openList = document.getElementById('auctions-open-list');
+    
+    let htmlParticipating = '';
+    let htmlOpen = '';
+    
+    // Inicializa lancesDados para armazenar IDs de leilões que o usuário já deu um lance
+    let lancesDados = new Set(JSON.parse(sessionStorage.getItem(`bids_for_user_${USER_ID}`) || '[]'));
+    
+    // 1. Renderiza a lista de leilões abertos filtrados
+    leiloesAbertosFiltrados.forEach(leilao => {
+        const isMine = leilao.proprietario_id == USER_ID;
         
-        let htmlParticipating = '';
-        let htmlOpen = '';
+        // Se você é o usuário do LANCE ATUAL, adicione este leilão ao seu rastreamento
+        if (leilao.usuario_atual_id == USER_ID && leilao.lance_atual > leilao.preco_inicial) {
+            lancesDados.add(leilao.id); 
+        }
         
-        // Inicializa lancesDados para armazenar IDs de leilões que o usuário já deu um lance
-        let lancesDados = new Set(JSON.parse(sessionStorage.getItem(`bids_for_user_${USER_ID}`) || '[]'));
+        // 🛑 LÓGICA CORRIGIDA AQUI:
+        // Nova Condição de Participação: Se o ID do leilão estiver no rastreamento OU você for o proprietário (isMine)
+        const isParticipating = lancesDados.has(leilao.id) || isMine; 
         
-        // 1. Renderiza a lista de leilões abertos filtrados
-        leiloesAbertosFiltrados.forEach(leilao => {
-            const isMine = leilao.proprietario_id == USER_ID;
-            
-            // Se você é o usuário do LANCE ATUAL, adicione este leilão ao seu rastreamento
-            if (leilao.usuario_atual_id == USER_ID && leilao.lance_atual > leilao.preco_inicial) {
-                lancesDados.add(leilao.id); 
-            }
-            
-            // Condição de Participação: Se o ID do leilão estiver no rastreamento E você não é o dono
-            const isParticipating = lancesDados.has(leilao.id) && !isMine;
-            
-            const auctionHtml = `
-                <div class="auction-item" style="border-left: 5px solid ${isMine ? '#10b981' : (isParticipating ? '#f97316' : '#2563eb')}">
-                    <div class="auction-info">
-                        <h3>${leilao.titulo} ${isMine ? '<small>(Seu Leilão)</small>' : ''}</h3>
-                        <div>💰 Atual: <span class="highlight">R$ ${leilao.lance_atual.toFixed(2)}</span> por ${leilao.usuario_atual}</div>
-                        <div>⏳ Expira em: ${leilao.tempo_restante}</div>
-                    </div>
-                    <button class="view-bids-btn" onclick="verLances(${leilao.id}, '${leilao.titulo.replace(/'/g, "\\'")}')">Ver Lances</button>
-                    ${!isMine ? `<button class="bid-btn" onclick="darLance(${leilao.id})">Dar Lance</button>` : '<span></span>'}
+        const auctionHtml = `
+            <div class="auction-item" style="border-left: 5px solid ${isMine ? '#10b981' : (isParticipating ? '#f97316' : '#2563eb')}">
+                <div class="auction-info">
+                    <h3>${leilao.titulo} ${isMine ? '<small>(Seu Leilão)</small>' : ''}</h3>
+                    <div>💰 Atual: <span class="highlight">R$ ${leilao.lance_atual.toFixed(2)}</span> por ${leilao.usuario_atual}</div>
+                    <div>⏳ Expira em: ${leilao.tempo_restante}</div>
                 </div>
-            `;
-            
-            // 2. Separação dos Blocos: Participando vs. Abertos
-            if (isParticipating) {
-                htmlParticipating += auctionHtml;
-            } else {
-                htmlOpen += auctionHtml;
-            }
+                <button class="view-bids-btn" onclick="verLances(${leilao.id}, '${leilao.titulo.replace(/'/g, "\\'")}')">Ver Lances</button>
+                ${!isMine ? `<button class="bid-btn" onclick="darLance(${leilao.id})">Dar Lance</button>` : '<span></span>'}
+            </div>
+        `;
+        
+        // 2. Separação dos Blocos: Participando vs. Abertos
+        if (isParticipating) {
+            htmlParticipating += auctionHtml;
+        } else {
+            htmlOpen += auctionHtml;
+        }
+
+        // 3. Notificação de Novo Lance (LÓGICA REFORÇADA E CORRIGIDA)
+// ... (o restante da função segue inalterado)
 
             // 3. Notificação de Novo Lance (LÓGICA REFORÇADA E CORRIGIDA)
             const lanceKey = `leilao_${leilao.id}_valor`;

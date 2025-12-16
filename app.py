@@ -93,8 +93,7 @@ def check_and_close_auction(auction_id):
             # Persiste os resultados finais (Chave closed:ID)
             r.hset(f'closed:{auction_id}', mapping=resultado_str)
             
-            # === CORREÇÃO: PONTO CRÍTICO: PUBLICAÇÃO DO EVENTO ===
-            # Usa uma nova conexão para evitar problemas de estado de Pub/Sub
+      
             r_pub = redis.StrictRedis(host=REDIS_HOST, decode_responses=True)
 
             r_pub.publish(CANAL_EVENTOS, json.dumps({
@@ -116,7 +115,7 @@ def check_and_close_auction(auction_id):
     
     return False, "Leilão ainda ativo."
 
-# --- ROTAS (Permanecem inalteradas) ---
+
 
 @app.route('/register', methods=['POST'])
 def register():
